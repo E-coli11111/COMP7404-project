@@ -13,3 +13,8 @@ def problem_prompt(query) -> str:
     return f"""
 Problem: {query} Let's think step by step.
 """.strip()
+
+def step_prompt(tables) -> str:
+    return f"""
+Now we execute the SQL query and get the result. The result is a table with the following columns: {'\n\n'.join(tables)}.
+""".strip()

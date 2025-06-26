@@ -74,7 +74,9 @@ def chatcot(query):
                     
                 else:
                     tables.append("No SQL queries found in the response.")
-                    
-        chat_history.append({"role": "system", "content": "\n".join(tables)})
+
+        chat_history.append({"role": "user", "content": step_prompt(tables)})
+        
+    return 
 
 print(chatcot("Find the total sales for product X in the last month."))
