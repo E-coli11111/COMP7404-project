@@ -1,0 +1,5 @@
+database:
+  type: sqlite
+  name: my_database.db
+  user: my_user
+  password: my_password

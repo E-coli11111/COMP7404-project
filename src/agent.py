@@ -1,4 +1,6 @@
-from sqlalchemy import create_engine
+import pandas as pd
+
+from sqlalchemy import create_engine, SQLAlchemyError, text
 
 class SQLAgent:
     def __init__(self, db_type='sqlite', db_name=None, username=None, password=None, host=None, port=None):
@@ -55,7 +57,7 @@ class SQLAgent:
             return df
         
         except SQLAlchemyError as e:
-            return f"数据库错误: {str(e)}"
+            return f"Error when executing: {str(e)}"
     
     def _is_safe_query(self, query):
         return True
