@@ -8,8 +8,8 @@ from models import ChatBreakdownResult
 from agent import SQLAgent
 
 CLIIENT = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    base_url=os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1"),
+    api_key=settings.API_KEY,
+    base_url=settings.API_BASE,
 )
 
 AGENT = SQLAgent(
@@ -46,37 +46,40 @@ def extract_sql_queries(response):
 
 def chatcot(query):
     chat_history = [
-        {"role": "system", "content": initial_prompt()},
+        {"role": "system", "content": initial_prompt(AGENT.db_type, AGENT.db_name)},
         {"role": "assistant", "content": "Yes, I understand the task."},
         {"role": "user", "content": problem_prompt(query)},
     ]
     
-    while True:
-        response = chat(chat_history, model="qwen3-8b", enable_thinking=True)
+    for step in range(settings.MAX_STEPS):
+        print(f"Step {step + 1}:")
+        response = chat(chat_history, model="qwen3-8b", enable_thinking=False)
         chat_history.append({"role": "assistant", "content": response})
         
-        if "Let's think step by step" in response:
-            continue
+        print(f"Assistant: {response}")
         
         if "End" in response:
-            break
+            return "Task completed."
         
         chat_history.append({"role": "user", "content": response})
         
         sql_queries = extract_sql_queries(response)
-        tables = []
-        if sql_queries:
-            for sql in sql_queries:
-                result = AGENT.execute(sql)
-                
-                if isinstance(result, pd.DataFrame):
-                    tables.append(result.to_markdown(index=False))
-                    
-                else:
-                    tables.append("No SQL queries found in the response.")
-
-        chat_history.append({"role": "user", "content": step_prompt(tables)})
         
-    return 
+        if not sql_queries:
+            chat_history.append({"role": "user", "content": "No SQL queries found. Please provide a valid SQL query."})
+            continue
+        elif len(sql_queries) > 1:
+            chat_history.append({"role": "user", "content": "Multiple SQL queries found. Please provide only one SQL query."})
+            continue
+        sql_query = sql_queries[0]
+        
 
-print(chatcot("Find the total sales for product X in the last month."))
+        result = AGENT.execute_query(sql_query)
+        if isinstance(result, pd.DataFrame):
+            chat_history.append({"role": "user", "content": step_prompt([result.to_markdown()])})
+        else:
+            chat_history.append({"role": "user", "content": error_prompt(result)})
+
+        print(chat_history[-1]["content"])
+        
+print(chatcot("Find the name and price of the most expansive product"))

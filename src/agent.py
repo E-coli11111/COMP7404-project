@@ -1,6 +1,7 @@
 import pandas as pd
 
-from sqlalchemy import create_engine, SQLAlchemyError, text
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 
 class SQLAgent:
     def __init__(self, db_type='sqlite', db_name=None, username=None, password=None, host=None, port=None):
@@ -8,6 +9,7 @@ class SQLAgent:
         Initialize the SQLAgent with database connection parameters.
         """
         self.db_type = db_type.lower()
+        self.db_name = db_name.lower()
         self.connection = None
         self.engine = None
         self.safe_mode = True  
@@ -61,3 +63,12 @@ class SQLAgent:
     
     def _is_safe_query(self, query):
         return True
+    
+if __name__ == "__main__":
+    # Example usage
+    agent = SQLAgent(db_type='mysql', host='localhost', username='root', password='test', db_name='test')
+
+    query = "SHOW tables;"
+    result = agent.execute_query(query)
+    
+    print(result)
