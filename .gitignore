@@ -6,3 +6,7 @@ venv/
 
 # Python cache files
 __pycache__/
+
+# Faiss index files
+*.faiss
+*.faiss.data.npy

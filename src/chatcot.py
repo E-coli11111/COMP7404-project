@@ -44,16 +44,36 @@ def extract_sql_queries(response):
     sql_queries = re.findall(r"```sql\n(.*?)\n```", response, re.DOTALL)
     return [query.strip() for query in sql_queries if query.strip()]
 
-def chatcot(query):
+def chatcot(query, with_retriever=False):
     chat_history = [
         {"role": "system", "content": initial_prompt(AGENT.db_type, AGENT.db_name)},
         {"role": "assistant", "content": "Yes, I understand the task."},
         {"role": "user", "content": problem_prompt(query)},
     ]
     
+    if with_retriever:
+        from retriever import FaissVectorSearcher
+        retriever = FaissVectorSearcher(
+            dimension=settings.EMB_DIM, 
+            emb_name=settings.EMB_NAME
+        )
+        
+        try:
+            retriever.load_index("faiss_index.faiss")
+        except FileNotFoundError:
+            print("Faiss index file not found. Please build the index first.")
+            return "Error: Faiss index file not found."
+        
+        query_vector = retriever.emb.encode(query, convert_to_numpy=True)
+        results = retriever.search(query_vector, top_k=5)
+        
+        if results:
+            retrieved_texts = [retriever.get_vector(result[0]).text for result in results]
+            chat_history.append({"role": "user", "content": retrieve_information_prompt(query, retrieved_texts)}) # TODO: modify prompt
+
     for step in range(settings.MAX_STEPS):
         print(f"Step {step + 1}:")
-        response = chat(chat_history, model="qwen3-8b", enable_thinking=False)
+        response = chat(chat_history, model=settings.LLM_NAME, enable_thinking=False)
         chat_history.append({"role": "assistant", "content": response})
         
         print(f"Assistant: {response}")
@@ -81,5 +101,10 @@ def chatcot(query):
             chat_history.append({"role": "user", "content": error_prompt(result)})
 
         print(chat_history[-1]["content"])
-        
-print(chatcot("Find the name and price of the most expansive product"))
+
+
+if __name__ == "__main__":
+    # Example usage
+    print(chatcot("What is the total number of products?"))
+    print(chatcot("List all products with their prices"))
+    print(chatcot("Find the name and price of the cheapest product"))       

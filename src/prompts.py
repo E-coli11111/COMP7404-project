@@ -39,3 +39,10 @@ If this result useful? If so, what is the next step? If not, can you rework on i
 
 def error_prompt(msg) -> str:
     return f"There's an error in your code with the following error message: {msg}. Can you rework on it"
+
+def retrieve_information_prompt(query, results) -> str:
+    retrieved_texts = '\n\n'.join(results)
+    return f"""
+Problem: {query} Let's think step by step. What we should do for the first step?.
+Retrieved information: {retrieved_texts}
+""".strip()
