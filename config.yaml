@@ -1,7 +1,7 @@
 database:
   db_type: mysql
   db_name: test
-  host: localhost
+  host: 47.115.45.213
   port: 3306
   username: root
   password: test

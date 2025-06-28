@@ -105,6 +105,6 @@ def chatcot(query, with_retriever=False):
 
 if __name__ == "__main__":
     # Example usage
-    print(chatcot("What is the total number of products?"))
-    print(chatcot("List all products with their prices"))
+    # print(chatcot("What is the total number of products?"))
+    # print(chatcot("List all products with their prices"))
     print(chatcot("Find the name and price of the cheapest product"))       
