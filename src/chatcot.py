@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import settings
 import pandas as pd
@@ -79,9 +80,8 @@ def chatcot(query, with_retriever=False):
         print(f"Assistant: {response}")
         
         if "End" in response:
-            return "Task completed."
+            break
         
-        chat_history.append({"role": "user", "content": response})
         
         sql_queries = extract_sql_queries(response)
         
@@ -101,10 +101,14 @@ def chatcot(query, with_retriever=False):
             chat_history.append({"role": "user", "content": error_prompt(result)})
 
         print(chat_history[-1]["content"])
+        
+    with open("chat_history.json", "w", encoding="utf-8") as f:
+        print(len(chat_history))
+        json.dump(chat_history[2:], f, ensure_ascii=False, indent=4)
 
 
 if __name__ == "__main__":
     # Example usage
-    # print(chatcot("What is the total number of products?"))
+    print(chatcot("What is the total number of products?"))
     # print(chatcot("List all products with their prices"))
-    print(chatcot("Find the name and price of the cheapest product"))       
+    # print(chatcot("Find the name and price of the cheapest product"))       

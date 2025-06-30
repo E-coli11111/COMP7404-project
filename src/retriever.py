@@ -1,6 +1,9 @@
 import numpy as np
 import faiss
 import sentence_transformers
+import json
+import os
+import settings
 
 from models import FaissTextModel
 
@@ -62,3 +65,41 @@ class FaissVectorSearcher:
         return self.index.reconstruct(idx)
 
     
+def load_knowledge_base(data_path, load_index=True):
+    if load_index:
+        retriever = FaissVectorSearcher(settings.EMB_DIM, settings.EMB_NAME)
+        try:
+            retriever.load_index("faiss_index.faiss")
+            return retriever
+        except FileNotFoundError:
+            print("Faiss index file not found. Please build the index first.")
+        
+    data = []
+    for json_file in os.listdir(data_path):
+        if json_file.endswith('.json'):
+            file_path = os.path.join(data_path, json_file)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                text = "\n".join([item['content'] for item in data if 'content' in item])
+                
+    retriever = FaissVectorSearcher(settings.EMB_DIM, settings.EMB_NAME)
+    
+    retriever.add_texts([text])
+    
+    retriever.save_index("faiss_index.faiss")
+    
+if __name__ == "__main__":
+    data_path = "data"
+    load_knowledge_base(data_path, load_index=True)
+    print("Knowledge base loaded and index created.")
+    
+    # Example usage
+    retriever = FaissVectorSearcher(settings.EMB_DIM, settings.EMB_NAME)
+    retriever.load_index("faiss_index.faiss")
+    
+    query = "What is the total number of products?"
+    query_vector = retriever.emb.encode(query, convert_to_numpy=True)
+    results = retriever.search(query_vector, top_k=5)
+    
+    for result in results:
+        print(f"ID: {result[0]}, Distance: {result[1]}")

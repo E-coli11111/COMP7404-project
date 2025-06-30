@@ -24,7 +24,8 @@ Do you understand the task? If so, please respond with "Yes, I understand the ta
 
 def problem_prompt(query) -> str:
     return f"""
-Problem: {query} Let's think step by step. What we should do for the first step?.
+Problem: {query} 
+Let's think step by step. What we should do for the first step?.
 """.strip()
 
 def step_prompt(tables) -> str:
@@ -43,6 +44,9 @@ def error_prompt(msg) -> str:
 def retrieve_information_prompt(query, results) -> str:
     retrieved_texts = '\n\n'.join(results)
     return f"""
-Problem: {query} Let's think step by step. What we should do for the first step?.
-Retrieved information: {retrieved_texts}
+Problem: {query} 
+Below are some examples: {retrieved_texts}
+
+Please use the above information to help you understand the problem better.
+Now, let's think step by step. What we should do for the first step?
 """.strip()
