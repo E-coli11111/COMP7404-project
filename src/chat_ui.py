@@ -28,13 +28,14 @@ from typing import List, Dict, Optional
 
 from src.chatcot import chatcot
 
+
 # client = OpenAI(
 #     api_key=ali_api_key,
 #     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
 # )
 
 
-def predict(message: str, history: List[Dict]):
+def predict(message: str, history: List[Dict], temperature: float, model_choice: str):
     """
     Predict function to handle the chat interaction with the model.
     :param message: User input message
@@ -115,34 +116,63 @@ delimiters = [
     {"left": '$$', "right": '$$', "display": True}
 ]
 
-my_theme = gr.Theme.from_hub("earneleh/paris")
+# my_theme = gr.Theme.from_hub("earneleh/paris")
+my_theme = gr.themes.Glass()
 
 css = """
-/* 增强预览框样式 */
-.file-preview {
-    font-family: 'Consolas', monospace;
-    background: #f8f9fa;
+/* 增强标题 */
+#header {
+    background: linear-gradient(90deg, #2c3e50, #4a69bd);
+    color: white;
+    padding: 15px 25px;
+    border-radius: 8px 8px 0 0;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* 统一间距 */
+.gr-row, .gr-column {
+    gap: 15px !important;
+}
+
+/* 功能区样式 */
+.accordion-section {
+    background: #2d3436;
     border-radius: 8px;
     padding: 15px;
-    white-space: pre-wrap;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
-/* 文件浏览器样式 */
-.file-explorer {
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    padding: 10px;
-    height: 300px;
-    overflow-y: auto;
-}
-
-/* 状态栏样式 */
-.status-bar {
-    padding: 12px;
-    background: #e9ecef;
-    border-radius: 8px;
+/* 按钮样式 */
+.button-group {
+    display: flex;
+    gap: 10px;
     margin-top: 15px;
-    font-size: 0.9em;
+}
+
+button {
+    transition: all 0.2s ease !important;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+button:active {
+    transform: translateY(1px);
+}
+
+/* 预览区优化 */
+.file-preview {
+    background: #1e272e;
+    border-radius: 6px;
+    padding: 12px;
+}
+
+/* 文本颜色优化 */
+label, .text-md {
+    color: #ecf0f1 !important;
 }
 """
 
@@ -258,11 +288,11 @@ with gr.Blocks(title="Chatbot", theme=my_theme, css=css) as iface:
 
         # 控制面板
         with gr.Column(scale=1):
-            with gr.Accordion("📁 Documents Management Center", open=True):
+            with gr.Accordion("📁 Documents & Tools", open=True):
                 with gr.Tab("Session Management"):
                     gr.Markdown("### 💾 Session Operation")
                     with gr.Row():
-                        export_btn = gr.Button("Export as Markdown", variant="primary")
+                        export_btn = gr.Button("💾 Export as Markdown", variant="primary")
                         export_result = gr.Text(show_label=False)
 
                     gr.Markdown("### 📂 File Browser")
@@ -274,12 +304,11 @@ with gr.Blocks(title="Chatbot", theme=my_theme, css=css) as iface:
                     )
 
                     gr.Markdown("### 👀 File Preview")
-                    file_preview = gr.Textbox(
+                    file_preview = gr.Code(
                         label="Preview content",
                         elem_classes="file-preview",
                         lines=15,
-                        max_lines=20,
-                        interactive=False
+                        language="markdown"  # 自动检测语言
                     )
 
     # 底部状态栏
@@ -298,6 +327,7 @@ with gr.Blocks(title="Chatbot", theme=my_theme, css=css) as iface:
             📂 Export Catalog：{os.path.abspath('exports')}
         </div>
         """
+
 
     chatbot.change(update_status, outputs=[status_bar])
 
