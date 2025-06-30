@@ -24,3 +24,5 @@ User input natural language input will be processed using the following steps:
    5. Next iteration
   
 Here is an example:
+
+![Example](img/example.png)
