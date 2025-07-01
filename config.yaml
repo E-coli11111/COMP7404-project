@@ -5,3 +5,8 @@ database:
   port: 3306
   username: root
   password: test
+
+retriever:
+  enabled: true
+
+type: sql

@@ -1,4 +1,6 @@
-def initial_prompt(db_type, db_name) -> str:
+import pandas as pd
+
+def initial_prompt(agent, *args, **kwargs) -> str:
     return f"""
 You are a backend software familiar with SQL. You will be given a request to perform a task.
 
@@ -7,7 +9,7 @@ Assume you know nothing about the database schema, but you have access to the da
 Please complete the task step by step, breaking it down into smaller steps. Each step should be a complete SQL query that can be executed against the database. 
 In each round, you should only generate one step with one SQL code. Your code will be executed and you can refer to the result to think about the next step
 
-We use {db_type} server and we are inside {db_name} database
+We use {agent.db_type} server and we are inside {agent.db_name} database
 
 Please pay attention to the following rules:
     1. You should not assume any dataset name or table schema
@@ -22,26 +24,25 @@ Please pay attention to the following rules:
 Do you understand the task? If so, please respond with "Yes, I understand the task."
 """.strip()
 
-def problem_prompt(query) -> str:
+def problem_prompt(query, *args, **kwargs) -> str:
     return f"""
 Problem: {query} 
 Let's think step by step. What we should do for the first step?.
 """.strip()
 
-def step_prompt(tables) -> str:
-    columns = '\n\n'.join(tables)
+def step_prompt(tables, *args, **kwargs) -> str:
     return f"""
 Now we execute the SQL query and get the result. The result is a table with the following columns: 
 
-{columns}
+{tables}
 
 If this result useful? If so, what is the next step? If not, can you rework on it.
 """.strip()
 
-def error_prompt(msg) -> str:
+def error_prompt(msg, *args, **kwargs) -> str:
     return f"There's an error in your code with the following error message: {msg}. Can you rework on it"
 
-def retrieve_information_prompt(query, results) -> str:
+def retrieve_information_prompt(query, results, **kwargs) -> str:
     retrieved_texts = '\n\n'.join(results)
     return f"""
 Problem: {query} 
@@ -50,3 +51,9 @@ Below are some examples: {retrieved_texts}
 Please use the above information to help you understand the problem better.
 Now, let's think step by step. What we should do for the first step?
 """.strip()
+
+def empty_query_prompt(*args, **kwargs) -> str:
+    return "No SQL queries found. Please provide a valid SQL query."
+
+def multiple_queries_prompt(*args, **kwargs) -> str:
+    return "Multiple SQL queries found. Please provide only one SQL query."

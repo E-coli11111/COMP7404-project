@@ -4,23 +4,34 @@ import re
 import settings
 import pandas as pd
 from openai import OpenAI
-from prompts import *
 from models import ChatBreakdownResult
-from agent import SQLAgent
+from agent import SQLAgent, Calculator
+from process import *
 
-CLIIENT = OpenAI(
+if settings.TYPE == "sql":
+    from prompts.sql import *
+    AGENT = SQLAgent(
+        **settings.CONFIG["database"]
+    )
+    extract_func = extract_sql_queries
+    
+elif settings.TYPE == "math":
+    from prompts.math import *
+    AGENT = Calculator()
+    extract_func = extract_math_expressions
+    
+else:    
+    raise ValueError(f"Invalid type: {settings.TYPE}. Supported types are 'sql' and 'math'.")
+
+CLIENT = OpenAI(
     api_key=settings.API_KEY,
     base_url=settings.API_BASE,
-)
-
-AGENT = SQLAgent(
-    **settings.CONFIG["database"]
 )
 
 def chat(
     history, 
     model="qwen3-8b", 
-    client=CLIIENT, 
+    client=CLIENT, 
     json_schema=None, 
     enable_thinking=False, 
     **kwargs
@@ -38,29 +49,22 @@ def chat(
 
     return response.choices[0].message.content
 
-def extract_sql_queries(response):
-    """
-    Extract SQL queries from the response content.
-    """
-    sql_queries = re.findall(r"```sql\n(.*?)\n```", response, re.DOTALL)
-    return [query.strip() for query in sql_queries if query.strip()]
-
-def chatcot(query, with_retriever=False):
+def chatcot(query):
+        
     chat_history = [
-        {"role": "system", "content": initial_prompt(AGENT.db_type, AGENT.db_name)},
+        {"role": "system", "content": initial_prompt(AGENT)},
         {"role": "assistant", "content": "Yes, I understand the task."},
         {"role": "user", "content": problem_prompt(query)},
     ]
     
-    if with_retriever:
-        from retriever import FaissVectorSearcher
-        retriever = FaissVectorSearcher(
-            dimension=settings.EMB_DIM, 
-            emb_name=settings.EMB_NAME
-        )
+    if settings.RETRIEVER.get("enabled", False):
+        from retriever import load_knowledge_base
         
         try:
-            retriever.load_index("faiss_index.faiss")
+            retriever = load_knowledge_base(
+                "./data",
+                load_index=False
+            )
         except FileNotFoundError:
             print("Faiss index file not found. Please build the index first.")
             return "Error: Faiss index file not found."
@@ -69,7 +73,7 @@ def chatcot(query, with_retriever=False):
         results = retriever.search(query_vector, top_k=5)
         
         if results:
-            retrieved_texts = [retriever.get_vector(result[0]).text for result in results]
+            retrieved_texts = [result[0].text for result in results]
             chat_history.append({"role": "user", "content": retrieve_information_prompt(query, retrieved_texts)}) # TODO: modify prompt
 
     for step in range(settings.MAX_STEPS):
@@ -82,23 +86,22 @@ def chatcot(query, with_retriever=False):
         if "End" in response:
             break
         
+        queries = extract_func(response)
         
-        sql_queries = extract_sql_queries(response)
-        
-        if not sql_queries:
-            chat_history.append({"role": "user", "content": "No SQL queries found. Please provide a valid SQL query."})
+        if not queries:
+            chat_history.append({"role": "user", "content": empty_query_prompt()})
             continue
-        elif len(sql_queries) > 1:
-            chat_history.append({"role": "user", "content": "Multiple SQL queries found. Please provide only one SQL query."})
+        elif len(queries) > 1:
+            chat_history.append({"role": "user", "content": multiple_queries_prompt()})
             continue
-        sql_query = sql_queries[0]
+        q = queries[0]
         
 
-        result = AGENT.execute_query(sql_query)
-        if isinstance(result, pd.DataFrame):
-            chat_history.append({"role": "user", "content": step_prompt([result.to_markdown()])})
-        else:
+        result = AGENT.execute(q)
+        if result.startswith("Error"):
             chat_history.append({"role": "user", "content": error_prompt(result)})
+        else:
+            chat_history.append({"role": "user", "content": step_prompt(result)})
 
         print(chat_history[-1]["content"])
         
@@ -109,6 +112,6 @@ def chatcot(query, with_retriever=False):
 
 if __name__ == "__main__":
     # Example usage
-    print(chatcot("What is the total number of products?"))
-    # print(chatcot("List all products with their prices"))
+    # print(chatcot("What is one plus one?"))
+    print(chatcot("List all products with their prices"))
     # print(chatcot("Find the name and price of the cheapest product"))       

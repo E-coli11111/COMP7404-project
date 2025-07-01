@@ -42,27 +42,19 @@ class FaissVectorSearcher:
         for i in range(top_k):
             idx = indices[0, i]
             if idx >= 0:  
-                vector_id = self.ids[idx]
                 distance = float(distances[0, i])
-                results.append((vector_id, distance))
+                results.append((self.data[idx], distance))
         
         return results
     
     def save_index(self, file_path):
         faiss.write_index(self.index, file_path)
-        np.save(file_path + ".ids.npy", np.array(self.ids))
+        np.save(file_path + ".ids.npy", np.array(self.data, dtype=object))
     
     def load_index(self, file_path):
         self.index = faiss.read_index(file_path)
-        self.ids = list(np.load(file_path + ".ids.npy"))
-        self.next_id = max(self.ids) + 1 if self.ids else 0
-
-    def get_vector(self, vector_id):
-        if vector_id not in self.ids:
-            raise ValueError(f"ID {vector_id} not found in the index.")
-        
-        idx = self.ids.index(vector_id)
-        return self.index.reconstruct(idx)
+        self.data = list(np.load(file_path + ".ids.npy"))
+        self.next_id = max(self.data) + 1 if self.data else 0
 
     
 def load_knowledge_base(data_path, load_index=True):
@@ -87,6 +79,8 @@ def load_knowledge_base(data_path, load_index=True):
     retriever.add_texts([text])
     
     retriever.save_index("faiss_index.faiss")
+    
+    return retriever
     
 if __name__ == "__main__":
     data_path = "data"
