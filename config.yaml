@@ -7,6 +7,6 @@ database:
   password: test
 
 retriever:
-  enabled: true
+  enabled: false
 
-type: sql
+type: math

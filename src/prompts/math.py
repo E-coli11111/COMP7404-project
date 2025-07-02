@@ -15,7 +15,7 @@ Please pay attention to the following rules:
         "target": "x y"
     }}
     ```
-    2. If you think the task is complete, please respond with "End". Otherwise, you can continue to write more equations.
+    2. If you think the task is complete, please respond with "End. Answer: <your_answer>" without any other words, (<your answer> should one single number). Otherwise, you can continue to write more equations.
 
 Do you understand the task? If so, please respond with "Yes, I understand the task."
 """.strip()

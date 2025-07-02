@@ -19,7 +19,7 @@ elif settings.TYPE == "math":
     from prompts.math import *
     AGENT = Calculator()
     extract_func = extract_math_expressions
-    
+     
 else:    
     raise ValueError(f"Invalid type: {settings.TYPE}. Supported types are 'sql' and 'math'.")
 
@@ -77,11 +77,11 @@ def chatcot(query):
             chat_history.append({"role": "user", "content": retrieve_information_prompt(query, retrieved_texts)}) # TODO: modify prompt
 
     for step in range(settings.MAX_STEPS):
-        print(f"Step {step + 1}:")
+        # print(f"Step {step + 1}:")
         response = chat(chat_history, model=settings.LLM_NAME, enable_thinking=False)
         chat_history.append({"role": "assistant", "content": response})
         
-        print(f"Assistant: {response}")
+        # print(f"Assistant: {response}")
         
         if "End" in response:
             break
@@ -103,11 +103,13 @@ def chatcot(query):
         else:
             chat_history.append({"role": "user", "content": step_prompt(result)})
 
-        print(chat_history[-1]["content"])
+        # print(chat_history[-1]["content"])
         
     with open("chat_history.json", "w", encoding="utf-8") as f:
-        print(len(chat_history))
+        # print(len(chat_history))
         json.dump(chat_history[2:], f, ensure_ascii=False, indent=4)
+        
+    return chat_history[-1]["content"]
 
 
 if __name__ == "__main__":

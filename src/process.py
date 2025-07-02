@@ -16,3 +16,13 @@ def extract_math_expressions(response):
         response, re.DOTALL
     )
     return [expr.strip() for expr in math_expressions if expr.strip()]
+
+def extract_math_result(response):
+    """
+    Extract the final result from the response content.
+    """
+    # print("llm response", response)
+    match = re.search(r"End\. Answer:\s*(.*)", response)
+    if match:
+        return match.group(1).strip()
+    return None
