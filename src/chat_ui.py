@@ -15,7 +15,7 @@ import gradio as gr
 from typing import List, Dict, Optional, Tuple, Any
 from src.chatcot import chatcot
 
-# ===== # Load settings =====
+# ===== Load settings =====
 my_theme = gr.themes.Glass()
 
 delimiters = [
@@ -92,27 +92,40 @@ label, .text-md {
 
 
 def predict(message: str, history: List[Tuple[str, str]]):
-    # 初始化响应内容
+    # Initialize response content
     response_content = ""
-    step_markers = {}  # 跟踪步骤标记
+    step_markers = {}  # Track step markers
+    seen_content = set()  # Track processed content to avoid duplicates
 
-    # 初始化新的助手消息占位符
-    new_history = history + [(message, response_content)]
-    yield new_history
+    # Create base history
+    if history and history[-1][1] is None:
+        # If assistant placeholder exists, extract user message as base
+        user_msg = history[-1][0]
+        base_history = history[:-1]
+    else:
+        user_msg = message
+        base_history = history.copy()
 
-    # 调用chatcot生成器
+    # Initialize new history
+    new_history = base_history + [(user_msg, response_content)]
+
+    # Call chatcot generator
     for chunk in chatcot(message):
         try:
             content = chunk["content"]
             step = chunk.get("step", 0)
             msg_type = chunk["type"]
 
-            # 处理不同消息类型
+            # Check for duplicate content - especially for JSON formula blocks
+            if content.strip() in seen_content:
+                continue  # Skip duplicate content
+            seen_content.add(content.strip())
+
+            # Handle different message types
             if msg_type == "reasoning":
                 response_content += content
-
             elif msg_type in ["action", "result", "error", "final"]:
-                # 消息类型开头添加适当图标
+                # Add message type icon
                 icon = {
                     "action": "⚡",
                     "result": "📊",
@@ -120,20 +133,28 @@ def predict(message: str, history: List[Tuple[str, str]]):
                     "final": "✅"
                 }.get(msg_type, "")
 
-                # 添加步骤标记
+                # Add step marker
                 if step != step_markers.get("current_step"):
                     step_markers["current_step"] = step
                     response_content += f"\n{'=' * 20} Step {step} {'=' * 20}\n\n"
 
-                # 添加内容
-                response_content += f"{icon} {content}\n"
+                # Add content (auto-format JSON structure)
+                formatted_content = content
+                if content.strip().startswith("{"):
+                    try:
+                        json_content = json.loads(content)
+                        formatted_content = json.dumps(json_content, indent=2)
+                    except:
+                        pass
 
-                # 如果是最终消息
+                response_content += f"{icon} {formatted_content}\n"
+
+                # For final messages
                 if msg_type == "final":
-                    response_content += f"\n{'=' * 20} Final Answer {'=' * 20}\n{content}"
+                    response_content += f"\n{'=' * 20} Final Answer {'=' * 20}\n{formatted_content}"
 
-            # 更新聊天历史中的最后一条助手消息
-            new_history = history + [(message, response_content)]
+            # Update assistant message content
+            new_history = base_history + [(user_msg, response_content)]
             yield new_history
 
         except Exception as e:
@@ -141,14 +162,14 @@ def predict(message: str, history: List[Tuple[str, str]]):
             continue
 
 def convert_to_chat_history_format(messages: List[Dict[str, str]]) -> List[Tuple[str, str]]:
-    """将消息格式转换回gradio历史格式"""
+    """Convert message format back to gradio history format"""
     history = []
     for msg in messages:
         if msg["role"] == "user":
             user_msg = msg["content"]
         elif msg["role"] == "assistant":
             assistant_msg = msg["content"]
-            if user_msg:  # 确保有对应的用户消息
+            if user_msg:  # Ensure corresponding user message exists
                 history.append((user_msg, assistant_msg))
                 user_msg = None
     return history
@@ -166,9 +187,9 @@ def export_to_md(history: List[Tuple[str, str]]) -> str:
 
         with open(filename, "w", encoding="utf-8") as f:
             f.write(md_content)
-        return f"✅ Export Successful：{filename}"
+        return f"✅ Export successful: {filename}"
     except Exception as e:
-        return f"❌ Export Failure：{str(e)}"
+        return f"❌ Export failed: {str(e)}"
 
 
 def get_full_history(history: List[Tuple[str, str]]) -> List[Dict[str, str]]:
@@ -202,7 +223,7 @@ def export_full_history(history: List[Tuple[str, str]]) -> str:
 
 def preview_file(files: Optional[List[str]]) -> str:
     """
-    Preview the contents of selected files, including text files and some binary files
+    Preview the contents of selected files (text files and certain binary files)
     :param files: List of selected files
     """
     if not files:
@@ -214,31 +235,31 @@ def preview_file(files: Optional[List[str]]) -> str:
 
         # File size limit
         if file_size > 1024 * 1024:  # 1MB
-            return "⚠️ File size is too large, preview is not supported for the time being."
+            return "⚠️ File size is too large, preview not supported."
 
         # Detect file types
         if file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.pdf')):
-            return "🖼️ Binary file detected, please download it and view it."
+            return "🖼️ Binary file detected, please download and view externally."
 
-        # Automatic detection of codes
+        # Automatic encoding detection
         with open(file_path, 'rb') as f:
-            raw_data = f.read(10000)  # 读取前10KB用于检测编码
+            raw_data = f.read(10000)  # Read first 10KB for encoding detection
             result = chardet.detect(raw_data)
             encoding = result['encoding'] or 'utf-8'
 
-        # Read the full content
+        # Read full content
         with open(file_path, 'r', encoding=encoding, errors='replace') as f:
             content = f.read(2000)
 
             # Add file metadata
             file_info = f"📄 File Path: {file_path}\n"
             file_info += f"📏 File Size: {file_size / 1024:.1f}KB\n"
-            file_info += f"🔠 Check Digit: {encoding}\n\n"
+            file_info += f"🔠 Detected Encoding: {encoding}\n\n"
 
             return file_info + content
 
     except Exception as e:
-        return f"❌ Preview Failure: {str(e)}"
+        return f"❌ Preview failed: {str(e)}"
 
 
 def format_full_history(history: List[Tuple[str, str]]) -> str:
@@ -265,8 +286,8 @@ def format_full_history(history: List[Tuple[str, str]]) -> str:
 
 
 def user_message(message: str, history: List[Tuple[str, str]]) -> tuple:
-    # 添加用户消息，创建助手占位符
-    return "", history + [(message, None)]
+    # Add user message and create assistant placeholder
+    return "", history + [(message, None)], message
 
 
 # Gradio Interface
@@ -274,8 +295,11 @@ with gr.Blocks(title="Chatbot", theme=my_theme, css=css) as iface:
     # Initialize state with chat history in tuples format for Chatbot
     initial_history = []
     chat_history_state = gr.State(value=convert_to_chat_history_format(initial_history))
+    current_user_message = gr.State("")
 
-    gr.Markdown("# 🚀 Enhanced LLM Reasoning: ChatCoT", elem_id="header")
+    gr.Markdown(
+        "# 🚀 Enhanced LLM Reasoning: ChatCoT: a new chain-of-thought (CoT) prompting framework based on multi-turn conversations",
+        elem_id="header")
 
     with gr.Row():
         with gr.Column(scale=3):
@@ -311,17 +335,17 @@ with gr.Blocks(title="Chatbot", theme=my_theme, css=css) as iface:
             # Full history section
             gr.Markdown("## 📜 Full Conversation History")
             full_history_display = gr.HTML(
-                "<div style='color:#aaa;padding:20px;text-align:center;'>click🔃Refresh history to view the full conversation</div>",
+                "<div style='color:#aaa;padding:20px;text-align:center;'>Click 🔃 Refresh History to view full conversation</div>",
                 elem_classes="full-history",
                 label="Complete conversation flow"
             )
             refresh_history_btn = gr.Button("🔄 Refresh History", variant="secondary")
 
-        # 控制面板
+        # Control panel
         with gr.Column(scale=1):
             with gr.Accordion("📁 Documents & Tools", open=True):
                 with gr.Tab("Session Management"):
-                    gr.Markdown("### 💾 Session Operation")
+                    gr.Markdown("### 💾 Session Operations")
                     with gr.Row():
                         export_btn = gr.Button("💾 Export as Markdown", variant="primary")
                         export_full_btn = gr.Button("📂 Export Full History", variant="primary")
@@ -351,11 +375,11 @@ with gr.Blocks(title="Chatbot", theme=my_theme, css=css) as iface:
     submit_event = submit_btn.click(
         fn=user_message,
         inputs=[msg, chat_history_state],
-        outputs=[msg, chatbot],
+        outputs=[msg, chatbot, current_user_message],  # Add output to message state
         queue=False
     ).then(
         fn=predict,
-        inputs=[msg, chatbot],
+        inputs=[current_user_message, chatbot],  # Use saved message
         outputs=[chatbot]
     ).then(
         lambda x: x,
@@ -379,9 +403,9 @@ with gr.Blocks(title="Chatbot", theme=my_theme, css=css) as iface:
 
         return f"""
         <div class='status-bar'>
-            🕒 Current Time：{time.strftime('%Y-%m-%d %H:%M:%S')} | 
-            💾 Session Saved：{history_length} conversations | 
-            📂 Export Directory：{os.path.abspath('../exports') if os.path.exists('../exports') else 'Not Found'}
+            🕒 Current Time: {time.strftime('%Y-%m-%d %H:%M:%S')} | 
+            💾 Session Saved: {history_length} conversations | 
+            📂 Export Directory: {os.path.abspath('../exports') if os.path.exists('../exports') else 'Not Found'}
         </div>
         """
 
