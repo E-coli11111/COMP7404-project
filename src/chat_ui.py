@@ -3,15 +3,7 @@
 @Time    : 2025/6/28 16:41
 @Author  : ShenXinjie
 @Email   : 
-@Desc    :
-"""
-
-# -*- coding: utf-8 -*-
-"""
-@Time    : 2025/4/20 20:20
-@Author  : ShenXinjie
-@Email   : 
-@Desc    : 
+@Desc    : Enhanced UI with full conversation history display
 """
 
 import os
@@ -20,95 +12,11 @@ import time
 import chardet
 import gradio as gr
 
-from openai import OpenAI
-from typing import List, Dict, Optional
-
-# from config import ali_api_key
-# from llm.agent_process import agent
-
+from typing import List, Dict, Optional, Tuple, Any
 from src.chatcot import chatcot
 
-
-# client = OpenAI(
-#     api_key=ali_api_key,
-#     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
-# )
-
-
-def predict(message: str, history: List[Dict], temperature: float, model_choice: str):
-    """
-    Predict function to handle the chat interaction with the model.
-    :param message: User input message
-    :param history: Conversation history
-    """
-
-    # ========== old
-
-    # history_openai_format = []
-    #
-    # # 整理对话内容
-    # for dialogue in history:
-    #     history_openai_format.append(
-    #         {"role": dialogue["role"],
-    #          "content": dialogue["content"]}
-    #     )
-    #
-    # # using agent to process the message
-    # agent_response = agent.invoke({"input": message})["output"]
-    #
-    # history_openai_format.append({"role": "user", "content": message})
-    #
-    # # add the agent response to the history
-    # history_openai_format.append(
-    #     {"role": "user",
-    #      "content": "the follow responses is obtain by local agent, you must consider it and Don't question authority:" + agent_response}
-    # )
-    #
-    # response = client.chat.completions.create(
-    #     model=model_choice,
-    #     messages=history_openai_format,
-    #     temperature=temperature,
-    #     stream=True
-    # )
-
-    # ========== old
-
-    response = chatcot(message)
-
-    partial_message = ""
-    is_reasoning = False
-    is_answering = False
-
-    for chunk in response:
-        try:
-            if chunk.choices == []:
-                if hasattr(chunk, 'usage'):
-                    print("\n" + "=" * 20 + "Token using condition" + "=" * 20 + "\n")
-                    print(chunk.usage)
-            else:
-                # check if the response is reasoning or answering
-                if 'finish_reason' in chunk.choices[0].model_fields_set and chunk.choices[0].delta.model_extra[
-                    'reasoning_content'] is not None:
-                    if not is_reasoning:
-                        partial_message += ("\n" + "=" * 20 + "Thinking……" + "=" * 20 + "\n")
-                        is_reasoning = True
-                    partial_message += chunk.choices[0].delta.model_extra['reasoning_content']
-                elif 'content' in chunk.choices[0].delta.model_fields_set and chunk.choices[
-                    0].delta.content is not None:
-                    if not is_answering:
-                        partial_message += ("\n" + "=" * 20 + "The Response" + "=" * 20 + "\n")
-                        is_answering = True
-                    partial_message += chunk.choices[0].delta.content
-                else:
-                    continue
-            yield partial_message
-        except Exception as e:
-            print(f"Error occurred while processing chunk: {e}")
-            continue
-
-    # 保存会话
-    save_session(history)
-
+# ===== # Load settings =====
+my_theme = gr.themes.Glass()
 
 delimiters = [
     {"left": r'\(', "right": r'\)', "display": True},
@@ -116,11 +24,7 @@ delimiters = [
     {"left": '$$', "right": '$$', "display": True}
 ]
 
-# my_theme = gr.Theme.from_hub("earneleh/paris")
-my_theme = gr.themes.Glass()
-
 css = """
-/* 增强标题 */
 #header {
     background: linear-gradient(90deg, #2c3e50, #4a69bd);
     color: white;
@@ -130,12 +34,10 @@ css = """
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
-/* 统一间距 */
 .gr-row, .gr-column {
     gap: 15px !important;
 }
 
-/* 功能区样式 */
 .accordion-section {
     background: #2d3436;
     border-radius: 8px;
@@ -143,7 +45,6 @@ css = """
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
-/* 按钮样式 */
 .button-group {
     display: flex;
     gap: 10px;
@@ -163,29 +64,105 @@ button:active {
     transform: translateY(1px);
 }
 
-/* 预览区优化 */
 .file-preview {
     background: #1e272e;
     border-radius: 6px;
     padding: 12px;
 }
 
-/* 文本颜色优化 */
 label, .text-md {
     color: #ecf0f1 !important;
 }
+
+.full-history {
+    background: #1e2b38;
+    padding: 15px;
+    border-radius: 8px;
+    max-height: 600px;
+    overflow-y: auto;
+    margin-top: 20px;
+}
+
+.message-user { color: #64b5f6; }
+.message-assistant { color: #81c784; }
+.message-system { color: #ffb74d; }
+.message-tool { color: #ff8a65; }
+.message-error { color: #e57373; }
 """
 
 
-def export_to_md(history: List[Dict]) -> str:
-    """导出聊天记录为Markdown文件"""
+def predict(message: str, history: List[Tuple[str, str]]):
+    # 初始化响应内容
+    response_content = ""
+    step_markers = {}  # 跟踪步骤标记
+
+    # 初始化新的助手消息占位符
+    new_history = history + [(message, response_content)]
+    yield new_history
+
+    # 调用chatcot生成器
+    for chunk in chatcot(message):
+        try:
+            content = chunk["content"]
+            step = chunk.get("step", 0)
+            msg_type = chunk["type"]
+
+            # 处理不同消息类型
+            if msg_type == "reasoning":
+                response_content += content
+
+            elif msg_type in ["action", "result", "error", "final"]:
+                # 消息类型开头添加适当图标
+                icon = {
+                    "action": "⚡",
+                    "result": "📊",
+                    "error": "❌",
+                    "final": "✅"
+                }.get(msg_type, "")
+
+                # 添加步骤标记
+                if step != step_markers.get("current_step"):
+                    step_markers["current_step"] = step
+                    response_content += f"\n{'=' * 20} Step {step} {'=' * 20}\n\n"
+
+                # 添加内容
+                response_content += f"{icon} {content}\n"
+
+                # 如果是最终消息
+                if msg_type == "final":
+                    response_content += f"\n{'=' * 20} Final Answer {'=' * 20}\n{content}"
+
+            # 更新聊天历史中的最后一条助手消息
+            new_history = history + [(message, response_content)]
+            yield new_history
+
+        except Exception as e:
+            print(f"Error processing chunk: {e}")
+            continue
+
+def convert_to_chat_history_format(messages: List[Dict[str, str]]) -> List[Tuple[str, str]]:
+    """将消息格式转换回gradio历史格式"""
+    history = []
+    for msg in messages:
+        if msg["role"] == "user":
+            user_msg = msg["content"]
+        elif msg["role"] == "assistant":
+            assistant_msg = msg["content"]
+            if user_msg:  # 确保有对应的用户消息
+                history.append((user_msg, assistant_msg))
+                user_msg = None
+    return history
+
+
+def export_to_md(history: List[Tuple[str, str]]) -> str:
     try:
         md_content = "# Chat History\n\n"
-        for dialogue in history:
-            md_content += f"**{dialogue['role'].capitalize()}**: {dialogue['content']}\n\n"
+        for user, assistant in history:
+            md_content += f"**User**: {user}\n"
+            md_content += f"**Assistant**: {assistant}\n\n"
 
-        os.makedirs("exports", exist_ok=True)
-        filename = f"exports/chat_{int(time.time())}.md"
+        os.makedirs("../exports", exist_ok=True)
+        filename = f"../exports/chat_{int(time.time())}.md"
 
         with open(filename, "w", encoding="utf-8") as f:
             f.write(md_content)
@@ -194,24 +171,39 @@ def export_to_md(history: List[Dict]) -> str:
         return f"❌ Export Failure：{str(e)}"
 
 
-def save_session(history: List[Dict]):
-    os.makedirs("sessions", exist_ok=True)
-    with open("sessions/latest_session.json", "w") as f:
-        json.dump(history, f)
-
-
-def load_session() -> List[Dict]:
+def get_full_history(history: List[Tuple[str, str]]) -> List[Dict[str, str]]:
+    """Load complete conversation history"""
     try:
-        with open("sessions/latest_session.json") as f:
+        with open("chat_history.json", "r", encoding="utf-8") as f:
             return json.load(f)
-    except FileNotFoundError:
-        return []
+    except:
+        # If full history not available, reconstruct from chat history
+        messages = []
+        for user, assistant in history:
+            messages.append({"role": "user", "content": user})
+            messages.append({"role": "assistant", "content": assistant})
+        return messages
+
+
+def export_full_history(history: List[Tuple[str, str]]) -> str:
+    """Export the full conversation history"""
+    try:
+        full_history = get_full_history(history)
+        os.makedirs("../exports", exist_ok=True)
+        filename = f"../exports/full_history_{int(time.time())}.json"
+
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(full_history, f, indent=2, ensure_ascii=False)
+
+        return f"✅ Full history exported: {filename}"
+    except Exception as e:
+        return f"❌ Export failed: {str(e)}"
 
 
 def preview_file(files: Optional[List[str]]) -> str:
     """
-    预览选中文件的内容，支持文本文件和部分二进制文件
-    :param files: 选中的文件列表
+    Preview the contents of selected files, including text files and some binary files
+    :param files: List of selected files
     """
     if not files:
         return "Please select the file you want to preview."
@@ -220,25 +212,25 @@ def preview_file(files: Optional[List[str]]) -> str:
         file_path = files[0]
         file_size = os.path.getsize(file_path)
 
-        # 文件大小限制
+        # File size limit
         if file_size > 1024 * 1024:  # 1MB
             return "⚠️ File size is too large, preview is not supported for the time being."
 
-        # 检测文件类型
+        # Detect file types
         if file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.pdf')):
             return "🖼️ Binary file detected, please download it and view it."
 
-        # 自动检测编码
+        # Automatic detection of codes
         with open(file_path, 'rb') as f:
             raw_data = f.read(10000)  # 读取前10KB用于检测编码
             result = chardet.detect(raw_data)
             encoding = result['encoding'] or 'utf-8'
 
-        # 读取完整内容
+        # Read the full content
         with open(file_path, 'r', encoding=encoding, errors='replace') as f:
-            content = f.read(2000)  # 限制预览长度
+            content = f.read(2000)
 
-            # 添加文件元信息
+            # Add file metadata
             file_info = f"📄 File Path: {file_path}\n"
             file_info += f"📏 File Size: {file_size / 1024:.1f}KB\n"
             file_info += f"🔠 Check Digit: {encoding}\n\n"
@@ -249,42 +241,81 @@ def preview_file(files: Optional[List[str]]) -> str:
         return f"❌ Preview Failure: {str(e)}"
 
 
+def format_full_history(history: List[Tuple[str, str]]) -> str:
+    """Format full history for display with color coding"""
+    full_history = get_full_history(history)
+    formatted = []
+    for entry in full_history:
+        role = entry.get('role', 'assistant')
+        content = entry.get('content', '')
+
+        # Apply color classes based on role
+        if role == 'user':
+            formatted.append(f'<div class="message-user"><strong>User:</strong> {content}</div>')
+        elif role == 'assistant':
+            formatted.append(f'<div class="message-assistant"><strong>Assistant:</strong> {content}</div>')
+        elif role == 'system':
+            formatted.append(f'<div class="message-system"><strong>System:</strong> {content}</div>')
+        elif role == 'tool':
+            formatted.append(f'<div class="message-tool"><strong>Tool:</strong> {content}</div>')
+        else:
+            formatted.append(f'<div><strong>{role.capitalize()}:</strong> {content}</div>')
+
+    return "\n\n".join(formatted)
+
+
+def user_message(message: str, history: List[Tuple[str, str]]) -> tuple:
+    # 添加用户消息，创建助手占位符
+    return "", history + [(message, None)]
+
+
 # Gradio Interface
 with gr.Blocks(title="Chatbot", theme=my_theme, css=css) as iface:
-    session_history = gr.State(load_session())
+    # Initialize state with chat history in tuples format for Chatbot
+    initial_history = []
+    chat_history_state = gr.State(value=convert_to_chat_history_format(initial_history))
 
-    # 头部区域
-    gr.Markdown("# 🚀 SQL CHATBOT", elem_id="header")
+    gr.Markdown("# 🚀 Enhanced LLM Reasoning: ChatCoT", elem_id="header")
 
-    # 双栏布局
     with gr.Row():
-        # 主对话区
         with gr.Column(scale=3):
-            # set up the chatbot
             chatbot = gr.Chatbot(
+                value=convert_to_chat_history_format(initial_history),
                 elem_id="chatbot",
-                # latex_delimiters=delimiters,  # setting latex delimiters
+                show_label=False,
                 resizable=True,
-                height=800,
+                height=600,
                 show_copy_button=True,
-                type="messages"
+                container=False,
             )
-            gr.ChatInterface(
-                fn=predict,
-                type="messages",
-                chatbot=chatbot,
-                additional_inputs=[
-                    gr.Slider(0.0, 1.0, 0.7, label="temperature"),
-                    gr.Dropdown(["qwen3-235b-a22b", "qwen-long", "qwen-max"], value="qwen3-235b-a22b",
-                                label="model choice")
-                ],
 
+            with gr.Row():
+                msg = gr.Textbox(
+                    label="Input",
+                    placeholder="Enter your message here...",
+                    show_label=False,
+                    container=False,
+                    scale=7,
+                )
+                submit_btn = gr.Button("🚀 Submit", variant="primary", scale=1)
+
+            gr.Examples(
                 examples=[
-                    ["What is the max 'SDG Score' company?", 0.1, "deepseek-32b"],
-                    ["What are the ESG information about company Sempra?", 0.5, "deepseek-671b"]
+                    ["What is one plus one?"],
+                    ["List all products with their prices"]
                 ],
-                submit_btn="🚀 submit"
+                inputs=[msg],
+                label="Example inputs"
             )
+
+            # Full history section
+            gr.Markdown("## 📜 Full Conversation History")
+            full_history_display = gr.HTML(
+                "<div style='color:#aaa;padding:20px;text-align:center;'>click🔃Refresh history to view the full conversation</div>",
+                elem_classes="full-history",
+                label="Complete conversation flow"
+            )
+            refresh_history_btn = gr.Button("🔄 Refresh History", variant="secondary")
 
         # 控制面板
         with gr.Column(scale=1):
@@ -293,42 +324,69 @@ with gr.Blocks(title="Chatbot", theme=my_theme, css=css) as iface:
                     gr.Markdown("### 💾 Session Operation")
                     with gr.Row():
                         export_btn = gr.Button("💾 Export as Markdown", variant="primary")
+                        export_full_btn = gr.Button("📂 Export Full History", variant="primary")
                         export_result = gr.Text(show_label=False)
 
                     gr.Markdown("### 📂 File Browser")
                     file_explorer = gr.FileExplorer(
                         glob="*.md",
-                        root_dir="exports",
+                        root_dir="../exports",
                         file_count="multiple",
-                        elem_classes="file-explorer"
+                        elem_classes="file-explorer",
+                        height=200
                     )
 
                     gr.Markdown("### 👀 File Preview")
                     file_preview = gr.Code(
                         label="Preview content",
                         elem_classes="file-preview",
-                        lines=15,
-                        language="markdown"  # 自动检测语言
+                        lines=25,
+                        language="markdown"
                     )
 
-    # 底部状态栏
+    # Bottom status bar
     status_bar = gr.HTML()
 
-    # 事件绑定
+    # Event bindings
+    submit_event = submit_btn.click(
+        fn=user_message,
+        inputs=[msg, chat_history_state],
+        outputs=[msg, chatbot],
+        queue=False
+    ).then(
+        fn=predict,
+        inputs=[msg, chatbot],
+        outputs=[chatbot]
+    ).then(
+        lambda x: x,
+        inputs=[chatbot],
+        outputs=[chat_history_state],
+        queue=False
+    )
+
+    # Export buttons
     export_btn.click(export_to_md, inputs=[chatbot], outputs=[export_result])
+    export_full_btn.click(export_full_history, inputs=[chatbot], outputs=[export_result])
     file_explorer.change(preview_file, inputs=[file_explorer], outputs=[file_preview])
+    refresh_history_btn.click(fn=format_full_history, inputs=[chat_history_state], outputs=[full_history_display])
 
 
     def update_status():
+        try:
+            history_length = len(chat_history_state.value)
+        except:
+            history_length = 0
+
         return f"""
         <div class='status-bar'>
-            🕒 Final Response Time：{time.strftime('%Y-%m-%d %H:%M:%S')} | 
-            💾 Session Saved：{len(session_history.value)}conversations | 
-            📂 Export Catalog：{os.path.abspath('exports')}
+            🕒 Current Time：{time.strftime('%Y-%m-%d %H:%M:%S')} | 
+            💾 Session Saved：{history_length} conversations | 
+            📂 Export Directory：{os.path.abspath('../exports') if os.path.exists('../exports') else 'Not Found'}
         </div>
         """
 
 
-    chatbot.change(update_status, outputs=[status_bar])
+    iface.load(update_status, outputs=[status_bar])  # Initialize the interface
+    chatbot.change(update_status, outputs=[status_bar])  # Update status bar after conversation
 
 iface.launch()
