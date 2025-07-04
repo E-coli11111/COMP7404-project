@@ -13,7 +13,7 @@ import chardet
 import gradio as gr
 
 from typing import List, Dict, Optional, Tuple, Any
-from src.chatcot import chatcot
+from chatcot import chatcot
 
 # ===== Load settings =====
 my_theme = gr.themes.Glass()

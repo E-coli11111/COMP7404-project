@@ -26,3 +26,20 @@ User input natural language input will be processed using the following steps:
 Here is an example:
 
 ![Example](img/example.png)
+
+## Usage
+
+Before running the application, you may need to get an api key from [Aliyun](https://bailian.console.aliyun.com/#/home) and set it in the environment variable `API_KEY`.
+
+You may change the `config.yaml` to support your own database. and at the same changing the way our application connects to the database. You can also switch mode by changing `type` in `config.yaml` to `math` or `sql`.
+
+To run the application, execute the following command:
+
+```
+export API_KEY=<your_api_key_here>
+python src/chat_ui.py
+```
+
+The application will start a Gradio interface, which you can access in your web browser at `http://localhost:7860`.
+
+Please ensure no other services are running on port 7860.
