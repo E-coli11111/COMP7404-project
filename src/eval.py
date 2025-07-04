@@ -3,8 +3,16 @@ import settings
 import threading
 
 from tqdm import tqdm
+
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 from chatcot import chatcot
-from process import extract_math_result
+from process import extract_math_result, extract_normal_math_result
+from normal_cot import normal_cot
+import time
+import matplotlib.pyplot as plt
+import numpy as np
 
 process = None
 
