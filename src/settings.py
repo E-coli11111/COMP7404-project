@@ -24,5 +24,5 @@ if TYPE not in ['sql', 'math']:
 
 RETRIEVER = CONFIG.get('retriever', {})
 
-EVAL_DATASET = "data/eval/turbo-chatcot-5shot.json"
+EVAL_DATASET = "data/eval/pa.json"
 EVAL_WORKER = 8

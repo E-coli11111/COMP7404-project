@@ -16,6 +16,7 @@ class EvaluationThread(threading.Thread):
 
     def run(self):
         self.result = evaluate_model(self.path)
+        print(f"\nThread {self.name} finished processing {len(self.path)} items.")
 
 def evaluate_model(dataset):
     """
@@ -35,7 +36,7 @@ def evaluate_model(dataset):
         del item['retrieval_result']
         del item['chat_and_reason']
         item['llm_answer'] = llm_answer
-        item['correct'] = (real_answer == llm_answer)
+        item['score'] = (real_answer.strip("$").replace(" ", "") == llm_answer.strip("$").replace(" ", "") if llm_answer is not None else False)
         
         process.update(1)
         # print(f"Problem: {item['problem']}")
@@ -52,6 +53,7 @@ def main():
         dataset = json.load(f)[:200]
     
     global process
+    workers = []
     process = tqdm(total=len(dataset), desc="Evaluating", unit="item")
     for i in range(settings.EVAL_WORKER):
         # Split the dataset into equal parts for each worker
@@ -63,13 +65,16 @@ def main():
         
         thread = EvaluationThread(data_chunk)
         thread.start()
+        workers.append(thread)
+
+    for thread in workers:
         thread.join()
-        
+    
     process.close()
     results = {
-        'correct_count': sum(1 for item in dataset if item['correct']),
+        'correct_count': sum(1 for item in dataset if item['score']),
         'total_count': len(dataset),
-        'accuracy': sum(1 for item in dataset if item['correct']) / len(dataset)
+        'accuracy': sum(1 for item in dataset if item['score']) / len(dataset)
     }
     
     print(f"Correct Count: {results['correct_count']}")

@@ -114,6 +114,6 @@ def chatcot(query):
 
 if __name__ == "__main__":
     # Example usage
-    # print(chatcot("What is one plus one?"))
-    print(chatcot("List all products with their prices"))
+    print(chatcot("What is one plus one?"))
+    # print(chatcot("List all products with their prices"))
     # print(chatcot("Find the name and price of the cheapest product"))       
