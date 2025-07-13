@@ -11,9 +11,10 @@ import json
 import time
 import chardet
 import gradio as gr
+import src.settings as settings
 
-from typing import List, Dict, Optional, Tuple, Any
-from chatcot import chatcot
+from typing import List, Dict, Optional, Tuple
+from src.chatcot import chatcot
 
 # ===== Load settings =====
 my_theme = gr.themes.Glass()
@@ -289,128 +290,134 @@ def user_message(message: str, history: List[Tuple[str, str]]) -> tuple:
     # Add user message and create assistant placeholder
     return "", history + [(message, None)], message
 
+def launch():
+    # Gradio Interface
+    with gr.Blocks(title="Chatbot", theme=my_theme, css=css) as iface:
+        # Initialize state with chat history in tuples format for Chatbot
+        initial_history = []
+        chat_history_state = gr.State(value=convert_to_chat_history_format(initial_history))
+        current_user_message = gr.State("")
 
-# Gradio Interface
-with gr.Blocks(title="Chatbot", theme=my_theme, css=css) as iface:
-    # Initialize state with chat history in tuples format for Chatbot
-    initial_history = []
-    chat_history_state = gr.State(value=convert_to_chat_history_format(initial_history))
-    current_user_message = gr.State("")
+        gr.Markdown(
+            "# 🚀 Enhanced LLM Reasoning: ChatCoT: a new chain-of-thought (CoT) prompting framework based on multi-turn conversations",
+            elem_id="header")
 
-    gr.Markdown(
-        "# 🚀 Enhanced LLM Reasoning: ChatCoT: a new chain-of-thought (CoT) prompting framework based on multi-turn conversations",
-        elem_id="header")
-
-    with gr.Row():
-        with gr.Column(scale=3):
-            chatbot = gr.Chatbot(
-                value=convert_to_chat_history_format(initial_history),
-                elem_id="chatbot",
-                show_label=False,
-                resizable=True,
-                height=600,
-                show_copy_button=True,
-                container=False,
-            )
-
-            with gr.Row():
-                msg = gr.Textbox(
-                    label="Input",
-                    placeholder="Enter your message here...",
+        with gr.Row():
+            with gr.Column(scale=3):
+                chatbot = gr.Chatbot(
+                    value=convert_to_chat_history_format(initial_history),
+                    elem_id="chatbot",
                     show_label=False,
+                    resizable=True,
+                    height=600,
+                    show_copy_button=True,
                     container=False,
-                    scale=7,
                 )
-                submit_btn = gr.Button("🚀 Submit", variant="primary", scale=1)
 
-            gr.Examples(
-                examples=[
-                    ["What is one plus one?"],
-                    ["List all products with their prices"]
-                ],
-                inputs=[msg],
-                label="Example inputs"
-            )
-
-            # Full history section
-            gr.Markdown("## 📜 Full Conversation History")
-            full_history_display = gr.HTML(
-                "<div style='color:#aaa;padding:20px;text-align:center;'>Click 🔃 Refresh History to view full conversation</div>",
-                elem_classes="full-history",
-                label="Complete conversation flow"
-            )
-            refresh_history_btn = gr.Button("🔄 Refresh History", variant="secondary")
-
-        # Control panel
-        with gr.Column(scale=1):
-            with gr.Accordion("📁 Documents & Tools", open=True):
-                with gr.Tab("Session Management"):
-                    gr.Markdown("### 💾 Session Operations")
-                    with gr.Row():
-                        export_btn = gr.Button("💾 Export as Markdown", variant="primary")
-                        export_full_btn = gr.Button("📂 Export Full History", variant="primary")
-                        export_result = gr.Text(show_label=False)
-
-                    gr.Markdown("### 📂 File Browser")
-                    file_explorer = gr.FileExplorer(
-                        glob="*.md",
-                        root_dir="../exports",
-                        file_count="multiple",
-                        elem_classes="file-explorer",
-                        height=200
+                with gr.Row():
+                    msg = gr.Textbox(
+                        label="Input",
+                        placeholder="Enter your message here...",
+                        show_label=False,
+                        container=False,
+                        scale=7,
                     )
+                    submit_btn = gr.Button("🚀 Submit", variant="primary", scale=1)
 
-                    gr.Markdown("### 👀 File Preview")
-                    file_preview = gr.Code(
-                        label="Preview content",
-                        elem_classes="file-preview",
-                        lines=25,
-                        language="markdown"
-                    )
+                gr.Examples(
+                    examples=[
+                        ["What is one plus one?"],
+                        ["List all products with their prices"]
+                    ],
+                    inputs=[msg],
+                    label="Example inputs"
+                )
 
-    # Bottom status bar
-    status_bar = gr.HTML()
+                # Full history section
+                gr.Markdown("## 📜 Full Conversation History")
+                full_history_display = gr.HTML(
+                    "<div style='color:#aaa;padding:20px;text-align:center;'>Click 🔃 Refresh History to view full conversation</div>",
+                    elem_classes="full-history",
+                    label="Complete conversation flow"
+                )
+                refresh_history_btn = gr.Button("🔄 Refresh History", variant="secondary")
 
-    # Event bindings
-    submit_event = submit_btn.click(
-        fn=user_message,
-        inputs=[msg, chat_history_state],
-        outputs=[msg, chatbot, current_user_message],  # Add output to message state
-        queue=False
-    ).then(
-        fn=predict,
-        inputs=[current_user_message, chatbot],  # Use saved message
-        outputs=[chatbot]
-    ).then(
-        lambda x: x,
-        inputs=[chatbot],
-        outputs=[chat_history_state],
-        queue=False
+            # Control panel
+            with gr.Column(scale=1):
+                with gr.Accordion("📁 Documents & Tools", open=True):
+                    with gr.Tab("Session Management"):
+                        gr.Markdown("### 💾 Session Operations")
+                        with gr.Row():
+                            export_btn = gr.Button("💾 Export as Markdown", variant="primary")
+                            export_full_btn = gr.Button("📂 Export Full History", variant="primary")
+                            export_result = gr.Text(show_label=False)
+
+                        gr.Markdown("### 📂 File Browser")
+                        file_explorer = gr.FileExplorer(
+                            glob="*.md",
+                            root_dir="../exports",
+                            file_count="multiple",
+                            elem_classes="file-explorer",
+                            height=200
+                        )
+
+                        gr.Markdown("### 👀 File Preview")
+                        file_preview = gr.Code(
+                            label="Preview content",
+                            elem_classes="file-preview",
+                            lines=25,
+                            language="markdown"
+                        )
+
+        # Bottom status bar
+        status_bar = gr.HTML()
+
+        # Event bindings
+        submit_event = submit_btn.click(
+            fn=user_message,
+            inputs=[msg, chat_history_state],
+            outputs=[msg, chatbot, current_user_message],  # Add output to message state
+            queue=False
+        ).then(
+            fn=predict,
+            inputs=[current_user_message, chatbot],  # Use saved message
+            outputs=[chatbot]
+        ).then(
+            lambda x: x,
+            inputs=[chatbot],
+            outputs=[chat_history_state],
+            queue=False
+        )
+
+        # Export buttons
+        export_btn.click(export_to_md, inputs=[chatbot], outputs=[export_result])
+        export_full_btn.click(export_full_history, inputs=[chatbot], outputs=[export_result])
+        file_explorer.change(preview_file, inputs=[file_explorer], outputs=[file_preview])
+        refresh_history_btn.click(fn=format_full_history, inputs=[chat_history_state], outputs=[full_history_display])
+
+
+        def update_status():
+            try:
+                history_length = len(chat_history_state.value)
+            except:
+                history_length = 0
+
+            return f"""
+            <div class='status-bar'>
+                🕒 Current Time: {time.strftime('%Y-%m-%d %H:%M:%S')} | 
+                💾 Session Saved: {history_length} conversations | 
+                📂 Export Directory: {os.path.abspath('../exports') if os.path.exists('../exports') else 'Not Found'}
+            </div>
+            """
+
+
+        iface.load(update_status, outputs=[status_bar])  # Initialize the interface
+        chatbot.change(update_status, outputs=[status_bar])  # Update status bar after conversation
+
+    iface.launch(
+        server_name=settings.IP,
+        server_port=settings.PORT,
+        share=False,
+        debug=True,
+        inbrowser=True
     )
-
-    # Export buttons
-    export_btn.click(export_to_md, inputs=[chatbot], outputs=[export_result])
-    export_full_btn.click(export_full_history, inputs=[chatbot], outputs=[export_result])
-    file_explorer.change(preview_file, inputs=[file_explorer], outputs=[file_preview])
-    refresh_history_btn.click(fn=format_full_history, inputs=[chat_history_state], outputs=[full_history_display])
-
-
-    def update_status():
-        try:
-            history_length = len(chat_history_state.value)
-        except:
-            history_length = 0
-
-        return f"""
-        <div class='status-bar'>
-            🕒 Current Time: {time.strftime('%Y-%m-%d %H:%M:%S')} | 
-            💾 Session Saved: {history_length} conversations | 
-            📂 Export Directory: {os.path.abspath('../exports') if os.path.exists('../exports') else 'Not Found'}
-        </div>
-        """
-
-
-    iface.load(update_status, outputs=[status_bar])  # Initialize the interface
-    chatbot.change(update_status, outputs=[status_bar])  # Update status bar after conversation
-
-iface.launch()

@@ -10,6 +10,8 @@ To set up the environment, follow these steps:
 pip install -r requirements.txt
 ```
 
+You are advised to setup an virtual environment to avoid conflicts with other projects. You can use `venv` or `conda` for this purpose.
+
 ## Generation Pipeline
 
 User input natural language input will be processed using the following steps:
@@ -37,9 +39,23 @@ To run the application, execute the following command:
 
 ```
 export API_KEY=<your_api_key_here>
-python src/chat_ui.py
+python main.py --web
 ```
 
 The application will start a Gradio interface, which you can access in your web browser at `http://localhost:7860`.
 
-Please ensure no other services are running on port 7860.
+Please ensure no other services are running on port 7860. You can change the port by modifying the `port` parameter in the `src/settings.py` file.
+
+If you want to run the application in a terminal, you can use the following command:
+
+```
+python main.py -q <your_query_here>
+```
+
+If you want to evaluate the performance of the model, you can use the following command:
+
+```
+python eval.py
+```
+
+with dataset options in the `settings.py`

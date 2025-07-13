@@ -3,8 +3,8 @@ import faiss
 import sentence_transformers
 import json
 import os
-import settings
 
+import src.settings as settings
 from models import FaissTextModel
 
 class FaissVectorSearcher:

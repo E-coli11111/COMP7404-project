@@ -1,22 +1,22 @@
 import os
 import json
 import re
-import settings
 import pandas as pd
+import src.settings as settings
 from openai import OpenAI
-from models import ChatBreakdownResult
-from agent import SQLAgent, Calculator
-from process import *
+from src.models import ChatBreakdownResult
+from src.agent import SQLAgent, Calculator
+from src.process import *
 
 if settings.TYPE == "sql":
-    from prompts.sql import *
+    from .prompts.sql import *
     AGENT = SQLAgent(
         **settings.CONFIG["database"]
     )
     extract_func = extract_sql_queries
     
 elif settings.TYPE == "math":
-    from prompts.math import *
+    from .prompts.math import *
     AGENT = Calculator()
     extract_func = extract_math_expressions
      
@@ -34,6 +34,7 @@ def chat(
     client=CLIENT, 
     json_schema=None, 
     enable_thinking=False, 
+    stream=False,
     **kwargs
 ):
     response = client.chat.completions.create(
@@ -41,25 +42,29 @@ def chat(
         messages=history,
         response_format={"type": "json_object"} if json_schema else None,
         extra_body={"enable_thinking": enable_thinking},
+        stream=stream,
         **kwargs
     )
+    
+    if stream:
+        return response
     
     if json_schema:
         json_schema.model_validate_json(response.choices[0].message.content)
 
     return response.choices[0].message.content
 
-def chatcot(query):
-        
+def chatcot(query, stream=False):
     chat_history = [
         {"role": "system", "content": initial_prompt(AGENT)},
         {"role": "assistant", "content": "Yes, I understand the task."},
         {"role": "user", "content": problem_prompt(query)},
     ]
-    
+
+    last_response = ""
     if settings.RETRIEVER.get("enabled", False):
         from retriever import load_knowledge_base
-        
+
         try:
             retriever = load_knowledge_base(
                 "./data",
@@ -68,52 +73,110 @@ def chatcot(query):
         except FileNotFoundError:
             print("Faiss index file not found. Please build the index first.")
             return "Error: Faiss index file not found."
-        
+
         query_vector = retriever.emb.encode(query, convert_to_numpy=True)
         results = retriever.search(query_vector, top_k=5)
-        
+
         if results:
             retrieved_texts = [result[0].text for result in results]
-            chat_history.append({"role": "user", "content": retrieve_information_prompt(query, retrieved_texts)}) # TODO: modify prompt
+            chat_history.append(
+                {"role": "user", "content": retrieve_information_prompt(query, retrieved_texts)})  # TODO: modify prompt
 
     for step in range(settings.MAX_STEPS):
-        # print(f"Step {step + 1}:")
-        response = chat(chat_history, model=settings.LLM_NAME, enable_thinking=False)
-        chat_history.append({"role": "assistant", "content": response})
-        
-        # print(f"Assistant: {response}")
-        
-        if "End" in response:
+
+        response = chat(
+            history=chat_history,
+            model=settings.LLM_NAME,
+            client=CLIENT,
+            stream=stream
+        )
+
+        # process stream content
+        if stream:
+            response_content = ""
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    response_content += content
+
+                    yield {
+                        "type": "reasoning",
+                        "content": content,
+                        "step": step + 1
+                    }
+        else:
+            response_content = response
+            yield {
+                "type": "reasoning",
+                "content": response_content,
+                "step": step + 1
+            }
+
+        chat_history.append({"role": "assistant", "content": response_content})
+        last_response = response_content
+
+        # check end condition
+        if "End" in response_content:
+            yield {
+                "type": "final",
+                "content": "Reasoning completed",
+                "step": step + 1
+            }
             break
-        
-        queries = extract_func(response)
-        
+
+        queries = extract_func(response_content)
+
         if not queries:
-            chat_history.append({"role": "user", "content": empty_query_prompt()})
+            error_msg = empty_query_prompt()
+            chat_history.append({"role": "user", "content": error_msg})
+            yield {
+                "type": "error",
+                "content": f"{error_msg}",
+                "step": step + 1
+            }
             continue
         elif len(queries) > 1:
-            chat_history.append({"role": "user", "content": multiple_queries_prompt()})
+            error_msg = multiple_queries_prompt()
+            chat_history.append({"role": "user", "content": error_msg})
+            yield {
+                "type": "error",
+                "content": f"{error_msg}",
+                "step": step + 1
+            }
             continue
-        q = queries[0]
-        
 
-        result = AGENT.execute(q)
-        if result.startswith("Error"):
-            chat_history.append({"role": "user", "content": error_prompt(result)})
-        else:
-            chat_history.append({"role": "user", "content": step_prompt(result)})
+        # execute the query
+        try:
+            q = queries[0]
+            yield {
+                "type": "action",
+                "content": f"Executing: {q}",
+                "step": step + 1
+            }
+            result = AGENT.execute(q)
 
-        # print(chat_history[-1]["content"])
-        
+            result_prompt = step_prompt(result) if not result.startswith("Error") else error_prompt(result)
+            chat_history.append({"role": "user", "content": result_prompt})
+
+            yield {
+                "type": "result",
+                "content": f"Result: {result}",
+                "step": step + 1
+            }
+
+        except Exception as e:
+            yield {
+                "type": "error",
+                "content": f"Execution error: {str(e)}",
+                "step": step + 1
+            }
+
+    yield {
+        "type": "final",
+        "content": last_response
+    }
+
     with open("chat_history.json", "w", encoding="utf-8") as f:
-        # print(len(chat_history))
-        json.dump(chat_history[2:], f, ensure_ascii=False, indent=4)
+        json.dump(chat_history, f, ensure_ascii=False, indent=4)
         
-    return chat_history[-1]["content"]
-
-
-if __name__ == "__main__":
-    # Example usage
-    print(chatcot("What is one plus one?"))
-    # print(chatcot("List all products with their prices"))
-    # print(chatcot("Find the name and price of the cheapest product"))       
+ 

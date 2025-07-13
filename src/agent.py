@@ -81,7 +81,7 @@ class SQLAgent(Agent):
             return f"Error when executing: {str(e)}"
     
     def _is_safe(self, _):
-        return True
+        return self.safe_mode and self.db_type in ['sqlite', 'mysql', 'postgresql'] and not any(op in _ for op in ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'CREATE'])
     
 
 class Calculator(Agent):
@@ -139,18 +139,3 @@ class Calculator(Agent):
     def _is_safe(self, query):
         return True
     
-    
-if __name__ == "__main__":
-    # Example usage
-    # agent = SQLAgent(db_type='mysql', host='localhost', username='root', password='test', db_name='test')
-
-    # query = "SHOW tables;"
-    # result = agent.execute_query(query)
-    
-    # print(result)
-    
-    agent = Calculator()
-    query = '{"variable": "x y z", "equations": ["x + 1 = 2", "y - 2 = 3"], "target": "x y"}'
-    result = agent.execute(query)
-    
-    print(result)

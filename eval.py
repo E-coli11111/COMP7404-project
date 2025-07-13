@@ -1,10 +1,10 @@
 import json
-import settings
+import src.settings as settings
 import threading
 
 from tqdm import tqdm
-from chatcot import chatcot
-from process import extract_math_result
+from src.chatcot import chatcot
+from src.process import extract_math_result
 
 process = None
 
@@ -32,7 +32,7 @@ def evaluate_model(dataset):
         
     for item in dataset:
         real_answer = item['real_answer']
-        llm_answer = extract_math_result(chatcot(item['problem']))
+        llm_answer = extract_math_result(list(chatcot(item['problem']))[-1]['content'])
         del item['retrieval_result']
         del item['chat_and_reason']
         item['llm_answer'] = llm_answer

@@ -1,15 +1,12 @@
 # normal_cot.py
 from agent import SQLAgent
-from prompts.math import initial_prompt, problem_prompt, error_prompt
 from openai import OpenAI
 import re
 import pandas as pd
 import settings
-from dashscope import Generation
-import dashscope
+
 
 client = OpenAI(api_key=settings.API_KEY, base_url=settings.API_BASE, timeout=30.0)
-#dashscope.api_key = settings.API_KEY
 agent = SQLAgent(**settings.CONFIG["database"])
 
 def extract_sql_queries(response):
