@@ -11,7 +11,7 @@ CONFIG = load_config()
 # LLM settings
 LLM_NAME = "qwen3-8b" # LLM model name, should be compatible with the API
 API_BASE = os.getenv("API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1") # API base URL
-API_KEY = os.getenv("API_KEY", "sk-394820080a1b42e28a040ebae4bc8f6f") # API key, can be set via environment variable
+API_KEY = os.getenv("API_KEY") # API key, can be set via environment variable
 
 EMB_NAME = "all-MiniLM-L6-v2" # Embedding model name, default fetch from Hugging Face, used by the retriever
 EMB_DIM = 384 # Embedding dimension, default is 384 for all-MiniLM-L6-v2

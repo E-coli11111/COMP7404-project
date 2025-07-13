@@ -58,4 +58,6 @@ If you want to evaluate the performance of the model, you can use the following 
 python eval.py
 ```
 
-with dataset options in the `settings.py`
+with dataset options in the `settings.py`.
+
+**Please make sure you set the correct option in `settings.py` before running scripts**
